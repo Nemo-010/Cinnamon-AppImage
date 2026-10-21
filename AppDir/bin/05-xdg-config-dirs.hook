@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# The XDG menu definition Cinnamon's start menu reads lives in
+# /etc/xdg/menus, which is found through XDG_CONFIG_DIRS. The default is
+# /etc/xdg, i.e. the host's, so the bundled copy would never be looked at and
+# the applet dies with
+#   gmenu_tree_get_root_directory: assertion 'tree->loaded' failed
+# Prepend the AppDir and keep the host entries after it, so host-installed
+# applications still show up in the menu.
+
+XDG_CONFIG_DIRS=$APPDIR/etc/xdg:${XDG_CONFIG_DIRS:-/etc/xdg}
+export XDG_CONFIG_DIRS

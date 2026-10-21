@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# Entry point of the AppImage. cinnamon-session needs a session bus; it is
+# normally provided by the display manager, so only create a private one when
+# nothing was inherited.
+
+set -eu
+
+export XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-X-Cinnamon}
+export XDG_SESSION_DESKTOP=${XDG_SESSION_DESKTOP:-cinnamon}
+export XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-x11}
+
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+	XDG_RUNTIME_DIR=${TMPDIR:-/tmp}/xdg-runtime-"$(id -u)"
+	mkdir -p "$XDG_RUNTIME_DIR"
+	chmod 700 "$XDG_RUNTIME_DIR"
+	export XDG_RUNTIME_DIR
+fi
+
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+	eval "$(dbus-launch --sh-syntax --exit-with-session)"
+	export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID
+fi
+
+exec cinnamon-session-cinnamon "$@"

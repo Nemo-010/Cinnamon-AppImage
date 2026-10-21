@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Upstream /usr/bin/cinnamon-session is a shell script that execs
+# /usr/lib/cinnamon-session/cinnamon-session-binary by absolute path, which
+# path-mapping.so cannot rewrite (it is not an ELF exec). quick-sharun puts
+# the binary in bin/, so exec it from PATH instead.
+
+set -eu
+
+if [ "${XDG_SESSION_TYPE:-}" = wayland ] &&
+   [ "${XDG_SESSION_CLASS:-}" != xgreeter ] &&
+   [ -n "${SHELL:-}" ] &&
+   grep -q "$SHELL" /etc/shells 2>/dev/null &&
+   ! echo "$SHELL" | grep -q false &&
+   ! echo "$SHELL" | grep -q nologin; then
+	if [ "${1:-}" != -l ]; then
+		exec bash -c "exec -l '$SHELL' -c '$0 -l $*'"
+	else
+		shift
+	fi
+fi
+
+exec cinnamon-session-binary "$@"

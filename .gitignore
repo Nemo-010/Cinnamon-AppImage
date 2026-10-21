@@ -1,0 +1,18 @@
+# quick-sharun build output
+/AppDir/bin/*
+!/AppDir/bin/*.hook
+!/AppDir/bin/cinnamon-session
+!/AppDir/bin/start-cinnamon-session
+/AppDir/.DirIcon
+/AppDir/AppRun
+/AppDir/AppRun.lib
+/AppDir/AppRun.sh
+/AppDir/sharun
+/AppDir/lib/
+/AppDir/share/
+/AppDir/shared/
+/AppDir/etc/
+/AppDir/*.desktop
+/dist/
+*.AppImage
+*.zsync
