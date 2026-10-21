@@ -17,6 +17,11 @@ a sandbox artifact (a `getpwuid` stub makes it run fine), but it has not been
 confirmed on a real desktop. Read [RESEARCH.md](RESEARCH.md) before relying on
 this.
 
+## Download
+
+Grab `Cinnamon-x86_64.AppImage` (or `aarch64`) from the
+[latest release](https://github.com/Nemo-010/Cinnamon-AppImage/releases/latest).
+
 ## Why this is not a normal AppImage
 
 Cinnamon's dependency closure is 510 packages (~2.3 GiB installed), and unlike an
