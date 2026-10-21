@@ -28,6 +28,10 @@ pacman -Syu --noconfirm \
 # "gmenu_tree_get_root_directory: assertion 'tree->loaded' failed".
 mkdir -p /etc/xdg/menus/applications-merged
 
+# quick-sharun reads ~/version to stamp the AppImage; without it the release
+# tag becomes "UNKNOWN".
+pacman -Q cinnamon | awk '{print $2}' | cut -d- -f1 > ~/version
+
 echo "Installing debloated packages..."
 echo "---------------------------------------------------------------"
 get-debloated-pkgs --add-mesa --prefer-nano icu-mini
