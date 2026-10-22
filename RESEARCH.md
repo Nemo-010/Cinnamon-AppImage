@@ -333,7 +333,90 @@ the full 532 MB AppDir into `$TMPDIR`. On a small `/tmp` tmpfs this fails with
 `dwarfs: short write: -20 != N` — errno 20 is `ENOTDIR`, which dwarfs reports
 for a write that cannot complete. `TMPDIR` must point at real disk.
 
-## 7. Recommendation
+## 7. Why the X server is not packaged
+
+Short answer: **Xvfb could be bundled and would work; Xorg cannot be, and
+bundling Xvfb would not solve the problem that matters.**
+
+### Xvfb: possible, and I verified it
+
+`xorg-server-xvfb` is only 2 MiB installed, and its dependency set
+(`glibc, libgl, libtirpc, libunwind, libxau, libxdmcp, libxfont2, nettle,
+pixman, sh, systemd-libs, xorg-server-common, xorg-xauth`) is all
+bundleable. I extracted the package and ran it against a `systemd-libs` copy:
+
+```
+$ LD_LIBRARY_PATH=./systemd-libs/usr/lib ./Xvfb :88 -screen 0 1280x800x24
+...
+Errors from xkbcomp are not fatal to the X server
+$ ls /tmp/.X11-unix/
+srwxrwxrwx 1 ... X88
+$ python3 -c "socket.connect('/tmp/.X11-unix/X88')"
+connected to X server OK
+```
+
+So it is technically feasible. It is still the wrong thing to ship:
+
+* **It would produce a headless, invisible desktop.** Xvfb renders into RAM
+  with no output device. A user who ran the AppImage on a CLI box would get a
+  Cinnamon session they cannot see or interact with. That is worse than a
+  clear "you need a display" error.
+* **It doubles the runtime cost.** Xvfb would have to start before Cinnamon
+  and be supervised, and the AppImage is already 148 MB.
+* **The user already has a display or does not.** If they are at a physical
+  machine, Xorg is running or startable — that is the host's job and its
+  configuration (drivers, `xorg.conf.d`, GPU) is host-specific. If they are
+  remote, they want a *forwardable* display (Xephyr/Xvnc/SSH X11 forwarding),
+  not one sealed inside the AppImage.
+
+### Xorg: genuinely cannot be bundled
+
+Xorg's real dependencies are kernel interfaces and privileges, not libraries:
+
+* It needs `/dev/ttyN` and `VT_ACTIVATE`/`VT_SETMODE` ioctls to own a virtual
+  terminal. The AppImage runs as an ordinary process; it cannot take over a VT,
+  and it must not.
+* Hardware modesetting needs **DRM master** on `/dev/dri/card0`, i.e. an fd the
+  kernel grants to exactly one client per device, coordinated by whoever owns
+  the seat.
+* It integrates with **logind** for exactly that handover —
+  `hw/xfree86/os-support/linux/systemd-logind.c` calls
+  `org.freedesktop.login1.Session.TakeControl` and `TakeDevice`. There is no
+  portable substitute: the alternative backends are ConsoleKit (dead) and
+  running as root.
+* Legacy paths need `ioperm()`/`iopl(3)`, which are root-only.
+* It loads driver modules from `/usr/lib/xorg/modules/drivers/`, which must
+  match the *host's* kernel and GPU. `modesetting_drv.so` is host hardware
+  policy, not application payload.
+
+The decisive test: run `Xorg` as an unprivileged user with no seat and no
+config, and it fails exactly as expected:
+
+```
+$ /usr/lib/Xorg :88 -nolisten tcp
+(EE) Fatal server error:
+(EE) no screens found
+```
+
+That is not a library problem that a bigger AppDir fixes. An AppImage that
+shipped Xorg could only ever start it as root or with the host's help, which
+defeats the point of a portable AppImage — and it would be a security
+regression, since it would be a setuid-root-equivalent binary inside a
+user-writable bundle.
+
+### The honest framing
+
+Anylinux AppImages replace `/usr`, not the operating system. An X server is
+part of the operating system: it owns devices, seats and privileges. Bundling
+one crosses from "portable userland" into "reimplementing logind", which is
+why no pkgforge-dev desktop AppImage does it either.
+
+What *would* be reasonable, and is not done here: bundle **Xephyr** (2.4 MiB,
+nests inside an existing display) or document `x11vnc`/`Xvnc` as the way to get
+a remote Cinnamon session. Those still require the host to have a display or a
+VNC client, so they improve ergonomics rather than remove the requirement.
+
+## 8. Recommendation
 
 Packaging a full desktop environment this way is feasible but it is a
 different class of problem from packaging an application:

@@ -67,7 +67,7 @@ need:
 
 | Requirement | Why |
 |---|---|
-| An **X server** (Xorg, Xvfb, Xephyr, or an existing X session) | Cinnamon is X11-only here; nothing boots one for you |
+| An **X server** (Xorg, Xvfb, Xephyr, or an existing X session) | Cinnamon is X11-only here; nothing boots one for you — see [why it is not bundled](RESEARCH.md#7-why-the-x-server-is-not-packaged) |
 | A **running system bus** (`dbus.service`) | `cinnamon-session` calls `g_bus_get_sync(G_BUS_TYPE_SYSTEM)` and `g_error()`s — a hard `abort()` — if it fails |
 | A **passwd entry** for your user | `nemo-desktop` and several `csd-*` helpers call `getpwuid()` |
 | **FUSE**, or ~550 MB free in `$TMPDIR` | Without `/dev/fuse` the runtime falls back to extracting the whole 532 MB AppDir |
