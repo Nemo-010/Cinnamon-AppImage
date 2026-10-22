@@ -59,18 +59,66 @@ be installed to `/usr` before it is deployed, which is what
 
 The result is `dist/Cinnamon-x86_64.AppImage`.
 
-## Running
+## Requirements
 
-From a display manager, or directly from an X session:
+**This does not run on a bare command-line install.** It is a *session*, not an
+operating system: it replaces `/usr` but not the host's system services. You
+need:
+
+| Requirement | Why |
+|---|---|
+| An **X server** (Xorg, Xvfb, Xephyr, or an existing X session) | Cinnamon is X11-only here; nothing boots one for you |
+| A **running system bus** (`dbus.service`) | `cinnamon-session` calls `g_bus_get_sync(G_BUS_TYPE_SYSTEM)` and `g_error()`s — a hard `abort()` — if it fails |
+| A **passwd entry** for your user | `nemo-desktop` and several `csd-*` helpers call `getpwuid()` |
+| **FUSE**, or ~550 MB free in `$TMPDIR` | Without `/dev/fuse` the runtime falls back to extracting the whole 532 MB AppDir |
+| A `/bin/sh` | `AppRun.sh` and the hooks are shell scripts |
+
+You do **not** need Cinnamon, GTK, GLib or any desktop libraries installed —
+the bundle carries its own glibc 2.44, GTK3, all 1136 libraries, the GI
+typelibs and Mesa. Verified: running `cinnamon` under the bundled loader
+resolves every library from inside the AppDir.
+
+### Default Arch / Alpine
+
+Both work as *hosts*, but neither works out of the box as a plain CLI install,
+and for different reasons:
+
+* **Arch, default CLI install.** `dbus` is in `core` but is not pulled in by
+  `base`, and there is no X server. So you need at least
+  `pacman -S xorg-server xorg-xinit dbus` and a startx/display-manager setup.
+  With those, this is the intended use case: launch it from `~/.xinitrc` or as
+  an X session.
+* **Alpine.** musl is not a problem — the bundle ships glibc and its own loader,
+  and `sharun` is statically linked, so the only host dependency is a POSIX
+  shell (busybox `ash` is fine). But Alpine has no systemd and no logind, so
+  the system bus normally exists only if you install `dbus` and run
+  `rc-service dbus start`. Also note `sharun`'s hook scripts call host `grep`,
+  `ln` and `mkdir`; busybox provides all three.
+* **No systemd/logind is survivable**, just degraded: `csm-systemd.c` and
+  `csm-consolekit.c` differ here — the systemd path only `g_warning()`s, the
+  ConsoleKit path `g_error()`s. Without either, power/suspend inhibition and
+  session tracking do not work, but the shell still runs.
+
+### Running
 
 ```sh
 ./Cinnamon-x86_64.AppImage
 ```
 
-It needs a session bus; `start-cinnamon-session` creates a private one when
-`DBUS_SESSION_BUS_ADDRESS` is unset. A system bus, logind, polkit, udev and the
-rest still come from the host, so this is a portable *session*, not a portable
-operating system.
+From a display manager, an X session, or with an X server you started yourself:
+
+```sh
+Xvfb :1 -screen 0 1920x1080x24 &
+DISPLAY=:1 dbus-run-session -- ./Cinnamon-x86_64.AppImage
+```
+
+`start-cinnamon-session` creates a private *session* bus when
+`DBUS_SESSION_BUS_ADDRESS` is unset, so `dbus-run-session` is optional. The
+*system* bus is not optional.
+
+On a host without FUSE, point `TMPDIR` at real disk first, or the extraction
+will fail with `dwarfs: short write: -20 != N` (`ENOTDIR`, because a 489 MB
+`/tmp` tmpfs filled up): `TMPDIR=$HOME/.cache ./Cinnamon-x86_64.AppImage`.
 
 ## Credits
 

@@ -274,7 +274,66 @@ but which silently produced a broken bundle and are worth recording:
   entry for the build UID or `dbus-daemon` refuses to start
   (`Could not get password database information for UID`).
 
-## 6. Recommendation
+## 6. Host requirements, and whether it runs on a bare CLI install
+
+Measured against the published 6.6.9 AppImage:
+
+**Self-contained parts.** The bundle carries glibc 2.44 and its own
+`ld-linux-x86-64.so.2`, GTK3, all 1136 libraries, the GI typelibs and Mesa.
+Running `cinnamon` under the bundled loader resolves **every** library from
+inside the AppDir — zero host libraries. `sharun` (the AppRun) is statically
+linked. So the "anylinux" claim holds for the *userland*.
+
+**What it does not provide.** It is a session, not an OS:
+
+| Needed | Source | Consequence if missing |
+|---|---|---|
+| X server | host | nothing starts one |
+| system bus | host | `cinnamon-session` aborts, see below |
+| passwd entry for the user | host | `nemo-desktop` segfaults (§4.1) |
+| FUSE, or ~550 MB in `$TMPDIR` | host | runtime extracts 532 MB instead |
+| `/bin/sh` | host | `AppRun.sh` and the hooks cannot run |
+
+**The system bus is a hard requirement.** `csm-consolekit.c:222-225`:
+
+```c
+bus = g_bus_get_sync (G_BUS_TYPE_SYSTEM, NULL, &error);
+if (bus == NULL)
+        g_error ("Failed to connect to system bus: %s", error->message);
+```
+
+`g_error()` calls `abort()`. Confirmed experimentally: with no system bus the
+AppImage prints `Failed to connect to system bus` and dies before creating a
+single window, `rc=1`. The systemd backend is more forgiving
+(`csm-systemd.c:138-142` only `g_warning()`s), so *which* backend is compiled in
+decides whether a missing bus is fatal — on Arch it is.
+
+**Default Arch CLI install.** `dbus` is in `core` but is not a dependency of the
+`base` group, and there is no X server, so a stock CLI Arch does not satisfy
+either of the first two rows. Minimum:
+
+```sh
+pacman -S xorg-server xorg-xinit dbus
+```
+
+then `startx` with this AppImage in `~/.xinitrc`, or a display manager. With
+that, this is exactly the intended use case.
+
+**Alpine.** musl is *not* an obstacle: the bundle ships glibc and its own
+loader, `sharun` is static, and the only host dependency is a POSIX shell
+(busybox `ash` is fine). The hook scripts call host `grep`, `ln`, `mkdir` and
+`chmod`, all of which busybox provides. The real issue is that Alpine has no
+systemd and no logind, so the system bus only exists after
+`apk add dbus && rc-service dbus start`. Without logind, power/suspend
+inhibition and session tracking degrade, but the shell still runs.
+
+**FUSE-less hosts.** With no `/dev/fuse` the runtime prints
+`failed to utilize FUSE during startup! Trying to extract and run...` and unpacks
+the full 532 MB AppDir into `$TMPDIR`. On a small `/tmp` tmpfs this fails with
+`dwarfs: short write: -20 != N` — errno 20 is `ENOTDIR`, which dwarfs reports
+for a write that cannot complete. `TMPDIR` must point at real disk.
+
+## 7. Recommendation
 
 Packaging a full desktop environment this way is feasible but it is a
 different class of problem from packaging an application:
